@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>szczur4</groupId>
     <artifactId>LingosBot</artifactId>
-    <version>v1.0r</version>
+    <version>v1.1r</version>
     <dependencies>
         <dependency>
             <groupId>org.seleniumhq.selenium</groupId>
