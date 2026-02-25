@@ -12,7 +12,7 @@ public class Main{
 	StringBuilder sb=new StringBuilder();
 	boolean finished;
 	void main(String[]args){
-		WebDriver driver=new ChromeDriver();
+		WebDriver driver=new ChromeDriver(new ChromeOptions().addArguments(Arrays.copyOfRange(args, 2, args.length)));
 		driver.manage().window().setSize(new Dimension(0,800));
 		driver.get("https://lingos.pl/h/login");
 		wait.until(_->{driver.findElement(By.id("CybotCookiebotDialogBodyButtonDecline")).click();return true;});
