@@ -1,83 +1,94 @@
 package szczur4.lingosBot;
-import java.net.*;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.*;
-import org.openqa.selenium.*;
-import org.openqa.selenium.NoSuchElementException;
-import org.openqa.selenium.chrome.*;
-import org.openqa.selenium.support.ui.*;
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.LineBorder;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.io.*;
+import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.zip.GZIPInputStream;
 public class Main{
-	Wait<WebDriver>wait=new FluentWait<>((WebDriver)null).withTimeout(Duration.ofSeconds(5)).pollingEvery(Duration.ofMillis(5)).ignoring(ElementNotInteractableException.class).ignoring(NoSuchElementException.class).ignoring(StaleElementReferenceException.class);
-	StringBuilder sb=new StringBuilder();
-	boolean finished;
-	void main(String[]args){
-		WebDriver driver=new ChromeDriver(new ChromeOptions().addArguments(Arrays.copyOfRange(args, 2, args.length)));
-		driver.manage().window().setSize(new Dimension(0,800));
-		driver.get("https://lingos.pl/h/login");
-		wait.until(_->{driver.findElement(By.id("CybotCookiebotDialogBodyButtonDecline")).click();return true;});
-		byte[]k=Base64.getUrlDecoder().decode(URLDecoder.decode(args[0],StandardCharsets.UTF_8));
-		for(byte b:k)sb.append((char)b);
-		driver.findElement(By.name("login")).sendKeys(sb.toString());
-		k=Base64.getUrlDecoder().decode(URLDecoder.decode(args[1],StandardCharsets.UTF_8));
-		sb=new StringBuilder();
-		for(byte b:k)sb.append((char)b);
-		driver.findElement(By.name("password")).sendKeys(sb.toString());
-		driver.findElement(By.id("submit-login-button")).click();
-		wait.until(_->{driver.findElement(By.className("me-2")).click();return true;});
-		List<WebElement>options=driver.findElement(By.className("form-select")).findElements(By.tagName("option"));
-		ArrayList<String>classLinks=new ArrayList<>();
-        for(WebElement w:options)classLinks.add(w.getAttribute("value"));
-		for(String classLink:classLinks){
-			driver.get("https://lingos.pl"+classLink);
-			driver.get("https://lingos.pl/student-confirmed/wordsets");
-			wait.until(_->{driver.findElements(By.className("rounded-3"));return true;});
-			ArrayList<String>wordSetLinks=new ArrayList<>(),lessonLinks=new ArrayList<>();
-			for(WebElement w:driver.findElements(By.className("rounded-3"))){
-				String str=w.findElement(By.className("pb-2")).getAttribute("href");
-				wordSetLinks.add(str);
-				lessonLinks.add("https://lingos.pl/s/lesson/0,"+str.substring(str.lastIndexOf("/")+1)+','+classLink.substring(classLink.lastIndexOf("/")+1));
-			}
-			Map<String,String>answers=new HashMap<>();
-			for(String wordSetLink:wordSetLinks){
-				driver.get(wordSetLink);
-				wait.until(_->{driver.findElements(By.className("flashcard-border-end"));return true;});
-				List<WebElement>keys=driver.findElements(By.className("flashcard-border-start")),values=driver.findElements(By.className("flashcard-border-end"));
-				for(int i=0;i<values.size();i++)answers.put(keys.get(i).getText(),values.get(i).getText());
-			}
-			for(String lessonLink:lessonLinks){
-				driver.get(lessonLink);
-				wait.until(_->{driver.findElement(By.id("progress_counter"));return true;});
-				while(true){
-					wait.until(_->{
-						try{if(driver.findElement(By.className("modal-body"))!=null)return finished=true;}catch(Exception _){}
-						WebElement content=driver.findElement(By.cssSelector("html>body>div:nth-of-type(2)>div>div>div>div>div"));
-						try{
-							WebElement button=content.findElement(By.cssSelector("a"));
-							if(button.getAttribute("class").contains("btn-primary"))button.click();
-						}catch(Exception _){}
-						try{
-							content.findElement(By.className("text-uppercase"));
-							driver.findElement(By.id("enterBtn")).click();
-						}catch(Exception _){}
-						try{
-							WebElement button=content.findElement(By.cssSelector("a"));
-							if(button.getAttribute("class").contains("btn-primary"))button.click();
-						}catch(Exception _){}
-						if(driver.getCurrentUrl().equals("https://lingos.pl/student-confirmed/premium-buy"))return finished=true;
-						return true;
-					});
-					if(finished)break;
-					wait.until(_->{driver.findElement(By.id("flashcard_main_text"));return true;});
-					String str=answers.get(driver.findElement(By.id("flashcard_main_text")).getText());
-					if(str==null)break;
-					driver.findElement(By.id("flashcard_answer_input")).sendKeys(str+Keys.ENTER);
-					wait.until(_->{driver.findElement(By.id("enterBtn")).click();return true;});
-				}
-				finished=false;
-			}
-		}
-		System.out.println("done");
-		driver.quit();
+	String login,password;
+	public static Border border=new LineBorder(Color.LIGHT_GRAY);
+	JButton startButton=new JButton(new AbstractAction(){public void actionPerformed(ActionEvent e){exec.execute(()->task.execute(login=loginField.getText(),password=passwordField.getText()));}}),loginButton=new JButton(new AbstractAction(){public void actionPerformed(ActionEvent e){exec.execute(()->{
+		disableAll();
+		task.login(login=loginField.getText(),password=passwordField.getText());
+		enableAll();
+	});}});
+	LogArea logArea=new LogArea();
+	JTextField loginField=new TextField("Login");
+	JPasswordField passwordField=new PasswordField("Password");
+	Task task;
+	ExecutorService exec=Executors.newSingleThreadExecutor();
+	JFrame frame=new JFrame();
+	void main(String[]args)throws IOException{
+		loadUser();
+		if(Arrays.asList(args).contains("autostart")&&login!=null&&password!=null)try{
+			task.execute(login,password);
+			System.exit(0);
+		}catch(Exception ex){System.err.println("Failed to do it automatically, launching the GUI");}
+		frame.addComponentListener(new ComponentAdapter(){public void componentResized(ComponentEvent e){
+			loginField.setBounds(5,5,(frame.getWidth()-10)*7/10,20);
+			startButton.setBounds(loginField.getWidth()+10,5,frame.getWidth()-loginField.getWidth()-15,45);
+			int w=loginField.getWidth();
+			passwordField.setBounds(5,30,w*7/10,20);
+			loginButton.setBounds(passwordField.getWidth()+10,30,w-passwordField.getWidth()-5,20);
+			logArea.setBounds(5,55,frame.getWidth()-10,frame.getContentPane().getHeight()-60);
+		}});
+		frame.setPreferredSize(new Dimension(300,200));
+		frame.setMinimumSize(frame.getPreferredSize());
+		frame.setSize(800,300);
+		frame.setIconImage(ImageIO.read(Main.class.getResource("/icon.png")));
+		frame.setTitle("szczur4 Lingos bot");
+		frame.getContentPane().setBackground(Color.BLACK);
+		frame.setLayout(null);
+		startButton.setText("Start");
+		startButton.setBorder(border);
+		startButton.setBackground(Color.DARK_GRAY.darker().darker());
+		startButton.setForeground(Color.LIGHT_GRAY);
+		startButton.setFocusable(false);
+		loginButton.setText("Login");
+		loginButton.setBorder(border);
+		loginButton.setBackground(Color.DARK_GRAY.darker().darker());
+		loginButton.setForeground(Color.LIGHT_GRAY);
+		loginButton.setFocusable(false);
+		logArea.setBounds(100,100,300,100);
+		logArea.setBorder(border);
+		loginField.setBackground(Color.BLACK);
+		loginField.setForeground(Color.LIGHT_GRAY);
+		loginField.setBorder(border);
+		loginField.setCaretColor(Color.LIGHT_GRAY);
+		passwordField.setBackground(Color.BLACK);
+		passwordField.setForeground(Color.LIGHT_GRAY);
+		passwordField.setBorder(border);
+		passwordField.setCaretColor(Color.LIGHT_GRAY);
+		frame.add(startButton);
+		frame.add(loginButton);
+		frame.add(logArea);
+		frame.add(loginField);
+		frame.add(passwordField);
+		disableAll();
+		frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+		frame.setVisible(true);
+		System.out.println("Waiting for the WebDriver");
+		task=new Task(this);
 	}
+	public void loadUser(){
+		File f=new File("lingosUser");
+		if(f.exists())try{
+			BufferedReader br=new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(f))));
+			loginField.setText(login=br.readLine());
+			passwordField.setText(password=br.readLine());
+		}catch(Exception ex){System.err.println("Failed to read user data");}
+		else System.out.println("No user data file found");
+	}
+	public void enableAll(){for(Component c:frame.getContentPane().getComponents())if(c instanceof JButton b)b.setEnabled(true);}
+	public void disableAll(){for(Component c:frame.getContentPane().getComponents())if(c instanceof JButton b)b.setEnabled(false);}
 }
