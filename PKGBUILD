@@ -9,7 +9,7 @@ license=('unknown')
 depends=('java-runtime>=25')
 makedepends=()
 source=("$pkgname-$pkgver.jar::https://github.com/szczur4/LingosBot/releases/download/$pkgver/LingosBot.$pkgver.jar")
-sha256sums=('922d449afe995a702423428f0ef46b0a04f527b76f3ea5075eeca082eeb4ec93')
+sha256sums=('20b71e1f95340f7c0b329ae9c95f1b089516d71f41053b80e40407ae52833a26')
 package(){
   install -d "$pkgdir/usr/share/java/$pkgname"
   install -dm777 "$pkgdir/var/lib/$pkgname"
